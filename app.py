@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import datetime
+import json
 from flask import Flask, request, jsonify, render_template
 from motor_diagnostico import MotorDiagnosticoAgricola, Sintoma, Condicao, Diagnostico, Fact
 
@@ -27,6 +29,64 @@ def formatar_texto(texto):
 def index():
     """Renderiza o nosso frontend (o index.html)"""
     return render_template('index.html')
+
+# REGISTRA AUDITORIA EM TXT (LEITURA GERAL DA AUDITORIA)
+def registro_auditoria_txt(resultado_diagnostico):
+    nome_arquivo = "auditoria_diagnosticos_da_planta.txt"
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d (%d/%m) %H:%M:%S")
+
+    if isinstance(resultado_diagnostico, list) or isinstance(resultado_diagnostico, dict):
+        resultado_formatado_txt = json.dumps(resultado_diagnostico, 
+                                          indent=4, 
+                                          ensure_ascii=False) # Garante acentos
+    else:
+        # Fallback
+        resultado_formatado_txt = str(resultado_diagnostico)
+    
+    conteudo = f"""
+    AUDITORIA DE DIAGNÓSTICO
+    =============================== 
+    Data/Hora: {timestamp}
+    Resultado do Diagnóstico:
+    {resultado_formatado_txt}
+    ==================================================
+    """
+   
+   #Cria TXT com arquivo e se já foi criado faz apenas um append com o "a" 
+    try:
+        with open(nome_arquivo, "a", encoding="utf-8") as arquivo_auditoria:
+            arquivo_auditoria.write(conteudo + "\n")
+            print(f"Arquivo de Auditoria em TXT criado/atualizado!")
+    except Exception as e:
+        print(f"Erro ao escrever no arquivo de auditoria: {e}")
+
+# ---------------------
+# SEPARAÇÃO DAS FUNÇÕES DE REGISTRO PARA EVITAR CONFUSÃO VISUAL
+# ---------------------
+
+# --- REGISTRO DE AUDITORIA EM JSON (PARA ANÁLISE DE DADOS) ---
+def registro_auditoria_json(resultado_diagnostico):
+    nome_arquivo = "auditoria_sistema_especialista.jsonl"
+    timestamp = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+    # Dicionario para a entrada de informações
+    log_entry = {
+        "timestamp": timestamp,
+        "resultados": resultado_diagnostico 
+    }
+
+    try:
+        linha_json = json.dumps(log_entry, ensure_ascii=False)
+
+        #Abre arquivo como append
+        with open(nome_arquivo, "a", encoding="utf-8") as arquivo_auditoria:
+            arquivo_auditoria.write(linha_json + "\n")
+            print(f"Arquivo de Auditoria JSON criado/atualizado!")
+            
+            
+    except Exception as e:
+        print(f"Erro ao escrever no arquivo de auditoria JSONL: {e}")
+
 
 # --- Rota 2: A API de Diagnóstico (VERSÃO 100% FORMATADA) ---
 @app.route('/diagnosticar', methods=['POST'])
@@ -101,10 +161,12 @@ def diagnosticar():
 
                     resultados_finais.append(diag_dict)
                     causas_ja_adicionadas.add(causa_formatada) # Marca como adicionada
-                
+        
+        registro_auditoria_txt(resultado_diagnostico=resultados_finais) #Cria a auditoria com os resultados finais formatados no TXT
+        registro_auditoria_json(resultado_diagnostico=resultados_finais) #Cria a auditoria com os resultados finais formatados em JSON
         # 5. Retornar a lista final e formatada
         return jsonify(resultados_finais)
-
+    
     except Exception as e:
         # Captura erros e os envia como JSON para o frontend
         return jsonify({"erro": str(e)}), 400
