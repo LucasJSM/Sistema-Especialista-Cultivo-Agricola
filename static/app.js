@@ -216,6 +216,8 @@ document.addEventListener("DOMContentLoaded", () => {
       1: "Solo seco, planta murcha",
       2: "Solo encharcado",
       3: "Inserir pH (Manual)",
+      4: "Inserir Umidade",
+      5: "Solo úmido, planta murcha (só à tarde)",
       v: "Voltar",
     });
     if (opcao === "v") return;
@@ -253,6 +255,60 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
     }
+    else if (opcao === "4") {
+      // 1. PRIMEIRO, pergunta o tipo de solo
+      const tipoSolo = await askQuestion("Qual o tipo do solo?", {
+        arenoso: "Arenoso",
+        argiloso: "Argiloso",
+        v: "Voltar",
+      });
+
+      if (tipoSolo === "v") return; // Sai se o usuário clicar em Voltar
+
+      // 2. SEGUNDO, pergunta o valor do sensor
+      const umidadeValue = await askForInput(
+        "Digite o valor do sensor de umidade",
+        "ex: 30",
+        "number"
+      );
+
+      // 3. TERCEIRO, adiciona AMBOS os fatos
+      if (umidadeValue) {
+        const umidade = parseFloat(umidadeValue);
+        if (!isNaN(umidade)) {
+          // Adiciona o fato do tipo de solo (ex: 'arenoso' ou 'argiloso')
+          adicionarFato(
+            "Condicao",
+            { tipo_solo: tipoSolo },
+            `Solo: ${tipoSolo}`
+          );
+
+          // Adiciona o fato da umidade (ex: 30)
+          adicionarFato(
+            "Condicao",
+            { sensor_umidade_solo: umidade },
+            `Sensor Umidade: ${umidade}`
+          );
+        } else {
+          alert("Valor de umidade inválido. Por favor, insira um número.");
+        }
+      }
+    }
+
+    else if (opcao === "5") {
+      // Adiciona os dois fatos que a regra precisa
+      adicionarFato(
+        "Condicao",
+        { solo_umido: "umido" },
+        "Solo: Úmido"
+      );
+      adicionarFato(
+        "Sintoma",
+        { planta_aparencia: "murcha_pela_tarde" },
+        "Planta: Murcha pela tarde"
+      );
+    }
+    
   }
 
   async function menuPraga() {
@@ -302,6 +358,7 @@ document.addEventListener("DOMContentLoaded", () => {
       1: "Risco de Geada (temp < 3°C)",
       2: "Onda de Calor (temp > 35°C e ar seco)",
       3: "Vento Forte (risco de tombar)",
+      4: "Inserir Fatos Manuais (Avançado)",
       v: "Voltar",
     });
     if (opcao === "v") return;
@@ -312,19 +369,98 @@ document.addEventListener("DOMContentLoaded", () => {
     if (opcao === "1") {
       dadosCondicao.previsao_tempo = "geada_iminente";
       dadosCondicao.temperatura_ar = 2;
-      dadosCondicao.tipo_cultura = "sensivel_ao_frio";
       descricao = "Clima: Risco de Geada";
     } else if (opcao === "2") {
+      dadosCondicao.previsao_tempo = "calor_iminente";
       dadosCondicao.temperatura_ar = 36;
-      dadosCondicao.umidade_ar = 30;
-      dadosCondicao.tipo_cultura = "hortalica_folhosa";
       descricao = "Clima: Onda de Calor";
     } else if (opcao === "3") {
       dadosCondicao.velocidade_vento = 70;
-      dadosCondicao.tipo_cultura = "porte_alto_ex_milho_ou_banana";
       descricao = "Clima: Vento Forte";
     }
+    else if (opcao === "4") {
+      // --- Esta opção permite a entrada granular ---
 
+      // FATO: Temperatura do Ar (para geada, escaldadura)
+      const tempValue = await askForInput(
+        "Temperatura do Ar (em °C)? (Deixe em branco se não souber)",
+        "ex: 25",
+        "number"
+      );
+      if (tempValue) {
+        const temp = parseFloat(tempValue);
+        if (!isNaN(temp)) {
+          adicionarFato("Condicao", { temperatura_ar: temp }, `Temp. Ar: ${temp}°C`);
+        }
+      }
+
+      // FATO: Umidade do Ar (para escaldadura, fungos)
+      const umidadeValue = await askForInput(
+        "Umidade Relativa do Ar (em %)? (Deixe em branco se não souber)",
+        "ex: 60",
+        "number"
+      );
+      if (umidadeValue) {
+        const umidade = parseFloat(umidadeValue);
+        if (!isNaN(umidade)) {
+          adicionarFato("Condicao", { umidade_ar: umidade }, `Umidade Ar: ${umidade}%`);
+        }
+      }
+
+      // FATO: Temperatura do Solo (para pragas de solo)
+      const soloTempValue = await askForInput(
+        "Temperatura do Solo (em °C)? (Deixe em branco se não souber)",
+        "ex: 20",
+        "number"
+      );
+      if (soloTempValue) {
+        const soloTemp = parseFloat(soloTempValue);
+        if (!isNaN(soloTemp)) {
+          adicionarFato("Condicao", { temperatura_solo: soloTemp }, `Temp. Solo: ${soloTemp}°C`);
+        }
+      }
+
+      // --- FATOS DE CONTEXTO (SIM/NÃO) ---
+
+      const estacao = await askQuestion("Estamos no Início da Primavera?", { 'inicio_primavera': "Sim", 'nao': "Não" });
+      if (estacao === 'inicio_primavera') {
+        adicionarFato("Condicao", { estacao_ano: 'inicio_primavera' }, "Estação: Início da Primavera");
+      }
+
+      const chuva = await askQuestion("Está em um período chuvoso?", { 'true': "Sim", 'nao': "Não" });
+      if (chuva === 'true') {
+        adicionarFato("Condicao", { periodo_chuvoso: true }, "Contexto: Período Chuvoso");
+      }
+      
+      const floracao = await askQuestion("A cultura principal está em floração?", { 'floracao': "Sim", 'nao': "Não" });
+      if (floracao === 'floracao') {
+        adicionarFato("Condicao", { cultura_estagio: 'floracao' }, "Estágio: Floração");
+      }
+      
+      const previsao = await askQuestion("Há previsão de Chuva Forte ou Granizo?", { 'chuva_forte_ou_granizo': "Sim", 'nao': "Não" });
+      if (previsao === 'chuva_forte_ou_granizo') {
+        adicionarFato("Condicao", { previsao_tempo: 'chuva_forte_ou_granizo' }, "Previsão: Chuva Forte/Granizo");
+      }
+
+      const historico = await askQuestion("A área tem histórico de fungos?", { 'alta_incidencia_fungica': "Sim", 'nao': "Não" });
+      if (historico === 'alta_incidencia_fungica') {
+        adicionarFato("Condicao", { historico_area: 'alta_incidencia_fungica' }, "Histórico: Área com fungos");
+      }
+
+      // FATO: Tipo de Cultura (para regras existentes)
+      const tipoCultura = await askQuestion("Qual o tipo de cultura principal?", {
+        'hortalica_folhosa': "Hortaliça Folhosa (ex: Alface)",
+        'sensivel_ao_frio': "Sensível ao Frio (ex: Tomate)",
+        'porte_alto_ex_milho_ou_banana': "Porte Alto (ex: Milho)",
+        'outra': "Outra / Não sei"
+      });
+      if (tipoCultura !== 'v' && tipoCultura !== 'outra') {
+         adicionarFato("Condicao", { tipo_cultura: tipoCultura }, `Cultura: ${tipoCultura.replace(/_/g, ' ')}`);
+      }
+      
+      // Não definimos 'descricao', pois esta opção adiciona múltiplos fatos.
+      // O 'if (descricao)' no final será pulado, o que está correto.
+    }
     if (descricao) {
       adicionarFato("Condicao", dadosCondicao, descricao);
     }
