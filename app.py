@@ -66,7 +66,7 @@ def registro_auditoria_txt(resultado_diagnostico):
 
 # --- REGISTRO DE AUDITORIA EM JSON (PARA ANÁLISE DE DADOS) ---
 def registro_auditoria_json(resultado_diagnostico):
-    nome_arquivo = "auditoria_sistema_especialista.jsonl"
+    nome_arquivo = "auditoria_sistema_especialista.json"
     timestamp = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
     # Dicionario para a entrada de informações
